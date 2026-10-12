@@ -11,6 +11,6 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Check patch names and unresolved markers
         run: bash scripts/checkPatches.sh
