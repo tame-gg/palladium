@@ -1,0 +1,58 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: andrew <andrew@zandi.vip>
+Date: Thu, 15 Oct 2026 02:31:47 -0400
+Subject: [PATCH] Optimize waypoint manager
+
+Since 1.21.6 every player is a waypoint transmitter and receiver, so each
+player movement runs ServerWaypointManager#updateWaypoint and #updatePlayer,
+both of which walk every other player in the level. At high player counts
+this is an O(players^2) per-tick cost even when the locator bar gamerule is
+disabled, because the per-pair gamerule check happens inside the loops.
+
+This patch keeps vanilla semantics exactly and only removes wasted work:
+- updatePlayer returns early when the locator bar is disabled for the
+  receiver; every create/update call in the loop would be a no-op.
+- updateWaypoint returns early when the level disables the locator bar;
+  every receiver tracked by a level's manager lives in that level, so
+  every per-receiver check in the loop would fail.
+- The connection snapshot taken before mutating the table is an ArrayList
+  instead of ImmutableSet.copyOf, avoiding hashing every entry (each hash
+  of a column-view entry also performs a table lookup).
+
+diff --git a/net/minecraft/server/waypoints/ServerWaypointManager.java b/net/minecraft/server/waypoints/ServerWaypointManager.java
+index e8a6cd8ff86ba0310b83a2b47d1bb96973aee2f9..fb01a0a1604d8544d7088bc582e455e91c15ce68 100644
+--- a/net/minecraft/server/waypoints/ServerWaypointManager.java
++++ b/net/minecraft/server/waypoints/ServerWaypointManager.java
+@@ -40,11 +40,18 @@ public class ServerWaypointManager implements WaypointManager<WaypointTransmitte
+     @Override
+     public void updateWaypoint(WaypointTransmitter waypoint) {
+         if (gg.tame.palladium.config.modules.async.SparklyPaperParallelWorldTicking.enabled) ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.level, "Cannot update waypoints off-main"); // Leaf - SparklyPaper - parallel world ticking
++        // Palladium start - Optimize waypoint manager
++        // Every tracked receiver lives in this level, so when the level disables the locator bar every
++        // create/update below is a no-op. Skip the O(players) scan that would otherwise run on each move.
++        if (!this.level.getGameRules().get(GameRules.LOCATOR_BAR)) {
++            return;
++        }
++        // Palladium end - Optimize waypoint manager
+         if (this.waypoints.contains(waypoint)) {
+             Map<ServerPlayer, WaypointTransmitter.Connection> map = Tables.transpose(this.connections).row(waypoint);
+             SetView<ServerPlayer> set = Sets.difference(this.players, map.keySet());
+ 
+-            for (Entry<ServerPlayer, WaypointTransmitter.Connection> entry : ImmutableSet.copyOf(map.entrySet())) {
++            for (Entry<ServerPlayer, WaypointTransmitter.Connection> entry : new java.util.ArrayList<>(map.entrySet())) { // Palladium - Optimize waypoint manager; snapshot without hashing every entry
+                 this.updateConnection(entry.getKey(), waypoint, entry.getValue());
+             }
+ 
+@@ -77,10 +84,11 @@ public class ServerWaypointManager implements WaypointManager<WaypointTransmitte
+ 
+     public void updatePlayer(ServerPlayer player) {
+         if (gg.tame.palladium.config.modules.async.SparklyPaperParallelWorldTicking.enabled) ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.level, "Cannot update player for waypoints off-main"); // Leaf - SparklyPaper - parallel world ticking
++        if (!isLocatorBarEnabledFor(player)) return; // Palladium - Optimize waypoint manager; every create/update below would be a no-op for this receiver
+         Map<WaypointTransmitter, WaypointTransmitter.Connection> map = this.connections.row(player);
+         SetView<WaypointTransmitter> set = Sets.difference(this.waypoints, map.keySet());
+ 
+-        for (Entry<WaypointTransmitter, WaypointTransmitter.Connection> entry : ImmutableSet.copyOf(map.entrySet())) {
++        for (Entry<WaypointTransmitter, WaypointTransmitter.Connection> entry : new java.util.ArrayList<>(map.entrySet())) { // Palladium - Optimize waypoint manager; snapshot without hashing every entry
+             this.updateConnection(player, entry.getKey(), entry.getValue());
+         }
+ 
