@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: andrew <andrew@zandi.vip>
+Date: Thu, 15 Oct 2026 02:40:40 -0400
+Subject: [PATCH] Respect JVM CPU limits when sizing chunk workers
+
+With libnuma available, OSNuma counts every CPU on the host and ignores
+container CPU quotas, so a 2 vCPU container on a large host sizes the
+Moonrise worker pool for the whole machine. Those extra workers contend
+with the main thread and trigger CFS quota throttling during chunk
+generation bursts.
+
+Cap the core count by Runtime#availableProcessors, which is container
+aware and honours -XX:ActiveProcessorCount. Bare metal and VMs, where
+both values agree, are unchanged.
+
+diff --git a/src/main/java/ca/spottedleaf/moonrise/common/util/MoonriseCommon.java b/src/main/java/ca/spottedleaf/moonrise/common/util/MoonriseCommon.java
+index 9affacc762f4933b3dd905cffdc06bb8d661e73e..da6ea068d4089d381d56198336bfdc2fa51950bd 100644
+--- a/src/main/java/ca/spottedleaf/moonrise/common/util/MoonriseCommon.java
++++ b/src/main/java/ca/spottedleaf/moonrise/common/util/MoonriseCommon.java
+@@ -40,7 +40,7 @@ public final class MoonriseCommon {
+     public static final BalancedPrioritisedThreadPool.OrderedStreamGroup SERVER_GROUP = MoonriseCommon.WORKER_POOL.createOrderedStreamGroup();
+ 
+     public static void adjustWorkerThreads(final int configWorkerThreads, final int configIoThreads) {
+-        int defaultWorkerThreads = OSNuma.getNativeInstance().getTotalCores()  / 2;
++        int defaultWorkerThreads = Math.min(OSNuma.getNativeInstance().getTotalCores(), Runtime.getRuntime().availableProcessors()) / 2; // Palladium - Respect JVM CPU limits; libnuma reports host cores and ignores container quotas
+         if (defaultWorkerThreads <= 4) {
+             defaultWorkerThreads = defaultWorkerThreads <= 3 ? 1 : 2;
+         } else {
