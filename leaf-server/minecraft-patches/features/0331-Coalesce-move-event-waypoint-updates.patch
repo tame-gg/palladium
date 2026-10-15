@@ -17,8 +17,9 @@ plugin teleports and cancelled moves). Receivers get the same final
 waypoint state with a single update, and the two extra O(players)
 passes per moving packet are replaced by one.
 
-Controlled by performance.coalesce-move-waypoint-updates (default true)
-in palladium-global.yml; false restores the per-step updates.
+Controlled by performance.coalesce-move-waypoint-updates in
+palladium-global.yml. Experimental and off by default; false keeps the
+per-step updates.
 
 diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
 index 411fa06f43ddb5e0d804a28587bfa5335c1e3a81..ae0d02e3e6d6a62c14f107b6b1b7de848dc9a584 100644

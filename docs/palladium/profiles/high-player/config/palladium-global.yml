@@ -2,11 +2,12 @@
 # [B] = changes gameplay or plugin-visible behaviour. Async toggles need a restart.
 
 performance:
-  # Default true; listed so it is not turned off by accident. Removes two O(players)
-  # locator-bar passes per moving player and redundant waypoint packets.
+  # Experimental, default false; this profile opts in. Removes two O(players) locator-bar
+  # passes per moving player and redundant waypoint packets. Load-test before production.
   coalesce-move-waypoint-updates: true
-  # [B] Locator bar updates only when a player crosses a block boundary. Alternatively,
-  # if the locator bar is not wanted at all: /gamerule locator_bar false in every world.
+  # [B] Experimental. Locator bar updates only when a player crosses a block boundary.
+  # Alternatively, if the locator bar is not wanted at all: /gamerule locator_bar false
+  # in every world.
   optimize-waypoint: true
   dab:
     # [B] Brains of mobs far from players tick less often.

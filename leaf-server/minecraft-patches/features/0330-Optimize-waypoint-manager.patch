@@ -20,10 +20,18 @@ This patch keeps vanilla semantics exactly and only removes wasted work:
   of a column-view entry also performs a table lookup).
 
 diff --git a/net/minecraft/server/waypoints/ServerWaypointManager.java b/net/minecraft/server/waypoints/ServerWaypointManager.java
-index e8a6cd8ff86ba0310b83a2b47d1bb96973aee2f9..fb01a0a1604d8544d7088bc582e455e91c15ce68 100644
+index e8a6cd8ff86ba0310b83a2b47d1bb96973aee2f9..e3f519ca4edd2a6e42fc0d1e27d05f812d4022ff 100644
 --- a/net/minecraft/server/waypoints/ServerWaypointManager.java
 +++ b/net/minecraft/server/waypoints/ServerWaypointManager.java
-@@ -40,11 +40,18 @@ public class ServerWaypointManager implements WaypointManager<WaypointTransmitte
+@@ -1,7 +1,6 @@
+ package net.minecraft.server.waypoints;
+ 
+ import com.google.common.collect.HashBasedTable;
+-import com.google.common.collect.ImmutableSet;
+ import com.google.common.collect.Sets;
+ import com.google.common.collect.Table;
+ import com.google.common.collect.Tables;
+@@ -40,11 +39,18 @@ public class ServerWaypointManager implements WaypointManager<WaypointTransmitte
      @Override
      public void updateWaypoint(WaypointTransmitter waypoint) {
          if (gg.tame.palladium.config.modules.async.SparklyPaperParallelWorldTicking.enabled) ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.level, "Cannot update waypoints off-main"); // Leaf - SparklyPaper - parallel world ticking
@@ -43,7 +51,7 @@ index e8a6cd8ff86ba0310b83a2b47d1bb96973aee2f9..fb01a0a1604d8544d7088bc582e455e9
                  this.updateConnection(entry.getKey(), waypoint, entry.getValue());
              }
  
-@@ -77,10 +84,11 @@ public class ServerWaypointManager implements WaypointManager<WaypointTransmitte
+@@ -77,10 +83,11 @@ public class ServerWaypointManager implements WaypointManager<WaypointTransmitte
  
      public void updatePlayer(ServerPlayer player) {
          if (gg.tame.palladium.config.modules.async.SparklyPaperParallelWorldTicking.enabled) ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.level, "Cannot update player for waypoints off-main"); // Leaf - SparklyPaper - parallel world ticking

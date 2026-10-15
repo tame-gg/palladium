@@ -12,7 +12,8 @@ Usage: scripts/jvmFlags.sh <low-end|balanced|high-player> [--heap <MB>] [--gc g1
   --gc     Garbage collector. Default: serial for 1 CPU, g1 otherwise.
   --jar    Server jar name. Default: palladium.jar
 
-RAM and CPU detection honours cgroup (container) limits.
+RAM and CPU detection honours cgroup (container) limits. The JDK version (for ZGC
+flags) is read from $JAVA, else $JAVA_HOME/bin/java, else java on PATH.
 EOF
   exit 2
 }
@@ -30,14 +31,39 @@ heap_mb=""
 gc=""
 jar="palladium.jar"
 
+warn() {
+  echo "warning: $*" >&2
+}
+
+# Options take exactly one value; a missing value or another option in its place is an error.
+option_value() {
+  if [ "$#" -lt 2 ] || [ -z "$2" ] || [ "${2#-}" != "$2" ]; then
+    echo "$1 requires a value" >&2
+    usage
+  fi
+  printf '%s' "$2"
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --heap) heap_mb="${2:-}"; shift 2 ;;
-    --gc) gc="${2:-}"; shift 2 ;;
-    --jar) jar="${2:-}"; shift 2 ;;
+    --heap) heap_mb=$(option_value "$@"); shift 2 ;;
+    --gc) gc=$(option_value "$@"); shift 2 ;;
+    --jar) jar=$(option_value "$@"); shift 2 ;;
     *) usage ;;
   esac
 done
+
+min_heap_mb=768
+if [ -n "$heap_mb" ]; then
+  case "$heap_mb" in
+    *[!0-9]*) echo "--heap must be a whole number of megabytes" >&2; exit 2 ;;
+  esac
+  heap_mb=$(( 10#$heap_mb ))
+  if [ "$heap_mb" -lt "$min_heap_mb" ]; then
+    echo "--heap must be at least ${min_heap_mb} MB (got ${heap_mb})" >&2
+    exit 2
+  fi
+fi
 
 # Containers (Docker, Pterodactyl, ...) expose host totals through /proc/meminfo
 # and nproc; prefer the cgroup limits when they are lower.
@@ -104,19 +130,28 @@ if [ -z "$heap_mb" ]; then
   if [ "$profile" = "low-end" ] && [ "$heap_mb" -gt 4096 ]; then
     heap_mb=4096
   fi
-  if [ "$heap_mb" -lt 768 ]; then
-    echo "Only ${total_mb} MB RAM detected; Palladium needs at least a 768 MB heap. Pass --heap to override." >&2
+  if [ "$heap_mb" -lt "$min_heap_mb" ]; then
+    echo "Only ${total_mb} MB RAM detected; Palladium needs at least a ${min_heap_mb} MB heap. Pass --heap to override." >&2
     exit 1
   fi
 fi
 
-case "$heap_mb" in
-  ''|*[!0-9]*) echo "--heap must be a number of megabytes" >&2; exit 2 ;;
-esac
-
 if [ -z "$gc" ]; then
   if [ "$cpus" -le 1 ]; then gc=serial; else gc=g1; fi
 fi
+
+java_major_version() {
+  local java_bin version
+  java_bin="${JAVA:-${JAVA_HOME:+$JAVA_HOME/bin/java}}"
+  java_bin="${java_bin:-java}"
+  command -v "$java_bin" >/dev/null 2>&1 || return 1
+  # First line looks like: openjdk version "21.0.4" 2024-07-16 (or "1.8.0_402" before Java 9).
+  version=$("$java_bin" -version 2>&1 | awk -F'"' 'NR == 1 { print $2 }')
+  version="${version#1.}"
+  version="${version%%[!0-9]*}"
+  [ -n "$version" ] || return 1
+  echo "$version"
+}
 
 flags=("-Xms${heap_mb}M" "-Xmx${heap_mb}M")
 
@@ -136,8 +171,19 @@ case "$gc" in
     fi
     ;;
   zgc)
-    # Generational ZGC. On JDK 21 generational mode must be requested explicitly.
-    flags+=(-XX:+UseZGC -XX:+ZGenerational -XX:+DisableExplicitGC)
+    # Generational ZGC. JDK 21-22 need -XX:+ZGenerational; JDK 23 deprecates it and
+    # JDK 24+ only has generational mode, so the flag is added for 21-22 only.
+    flags+=(-XX:+UseZGC)
+    java_major=$(java_major_version || true)
+    if [ -z "$java_major" ]; then
+      warn "cannot determine the Java version; add -XX:+ZGenerational yourself on JDK 21-22."
+    elif [ "$java_major" -lt 21 ]; then
+      echo "Generational ZGC needs JDK 21+ (found Java ${java_major}); Palladium requires Java 21." >&2
+      exit 1
+    elif [ "$java_major" -le 22 ]; then
+      flags+=(-XX:+ZGenerational)
+    fi
+    flags+=(-XX:+DisableExplicitGC)
     ;;
   serial)
     flags+=(-XX:+UseSerialGC -XX:+DisableExplicitGC)
@@ -154,10 +200,26 @@ flags+=(-XX:+PerfDisableSharedMem)
 # small server may never use; larger hosts want it so a bad -Xmx fails at boot.
 if [ "$profile" != "low-end" ] && [ "$gc" != "serial" ]; then
   flags+=(-XX:+AlwaysPreTouch)
+  warn "-XX:+AlwaysPreTouch commits all ${heap_mb} MB of heap at boot (slower start, full RSS immediately)." \
+    "The host or container memory limit must also cover off-heap memory, or the JVM is OOM-killed at boot."
 fi
 
 if [ "$profile" = "high-player" ]; then
   flags+=(-XX:+UseTransparentHugePages)
+  thp_file="${PALLADIUM_THP_FILE:-/sys/kernel/mm/transparent_hugepage/enabled}"
+  thp_mode=""
+  if [ -r "$thp_file" ]; then
+    thp_mode=$(sed -n 's/.*\[\(.*\)\].*/\1/p' "$thp_file")
+  fi
+  case "$thp_mode" in
+    madvise|always) ;;
+    never) warn "transparent huge pages are disabled (${thp_file} = never); -XX:+UseTransparentHugePages has no effect." \
+      "Set it to madvise, or drop the flag." ;;
+    *) warn "cannot read ${thp_file}; -XX:+UseTransparentHugePages only works with THP set to madvise or always." ;;
+  esac
+  if [ "$thp_mode" = "always" ]; then
+    warn "THP is 'always' system-wide; khugepaged compaction can cause latency spikes. madvise is preferred."
+  fi
 fi
 
 # Palladium-specific: skip the vanilla profiler's per-call ThreadLocal lookups.
