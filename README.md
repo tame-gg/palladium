@@ -97,6 +97,7 @@ This runs the patch audit, applies all patches, executes Gradle checks, builds t
 
 - [Palladium identity](docs/palladium/identity.md)
 - [Runtime safety gates](docs/palladium/runtime-safety.md)
+- [Performance profiles and JVM flags](docs/palladium/performance-profiles.md)
 - [Optimization roadmap](docs/palladium/optimization-roadmap.md)
 - [Roadmap implementation status](docs/palladium/roadmap-implementation-status.md)
 - [Feature foundation](docs/palladium/feature-foundation.md)

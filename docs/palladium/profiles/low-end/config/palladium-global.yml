@@ -1,0 +1,15 @@
+# Palladium low-end profile overlay for config/palladium-global.yml. Merge into the existing file.
+# [B] = changes gameplay or plugin-visible behaviour. Async toggles need a restart.
+
+async:
+  async-mob-spawning:
+    # On a single vCPU the extra spawn thread cannot run in parallel; synchronous spawning
+    # is also the vanilla behaviour. Keep true on 2+ vCPUs.
+    enabled: false
+performance:
+  dab:
+    # [B] Brains of mobs far from players tick less often (villager halls, farms).
+    enabled: true
+    start-distance: 12
+    max-tick-freq: 20
+    activation-dist-mod: 8

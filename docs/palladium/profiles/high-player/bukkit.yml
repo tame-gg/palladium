@@ -1,0 +1,17 @@
+# Palladium high-player profile overlay for bukkit.yml. Merge into the existing file.
+# [B] = changes gameplay or plugin-visible behaviour.
+
+# [B] Per-player mob caps (vanilla: 70/10/5/20/5/5/15). With per-player-mob-spawns the
+# world-wide total scales with player count; 500 spread-out players at vanilla caps means
+# tens of thousands of mobs.
+spawn-limits:
+  monsters: 40
+  animals: 8
+  water-animals: 3
+  water-ambient: 10
+  water-underground-creature: 3
+  axolotls: 3
+  ambient: 5
+ticks-per:
+  # [B] Attempt hostile spawns every 2 ticks instead of every tick.
+  monster-spawns: 2

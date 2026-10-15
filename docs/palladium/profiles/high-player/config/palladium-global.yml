@@ -1,0 +1,27 @@
+# Palladium high-player profile overlay for config/palladium-global.yml. Merge into the existing file.
+# [B] = changes gameplay or plugin-visible behaviour. Async toggles need a restart.
+
+performance:
+  # Default true; listed so it is not turned off by accident. Removes two O(players)
+  # locator-bar passes per moving player and redundant waypoint packets.
+  coalesce-move-waypoint-updates: true
+  # [B] Locator bar updates only when a player crosses a block boundary. Alternatively,
+  # if the locator bar is not wanted at all: /gamerule locator_bar false in every world.
+  optimize-waypoint: true
+  dab:
+    # [B] Brains of mobs far from players tick less often.
+    enabled: true
+    start-distance: 12
+    max-tick-freq: 20
+    activation-dist-mod: 8
+# Staging-only candidates (high risk, see docs/palladium/runtime-safety.md). Evaluate one at a
+# time with /palladium perf and spark before enabling in production:
+# async:
+#   async-entity-tracker:
+#     enabled: true
+#     threads: 4
+#   async-pathfinding:
+#     enabled: true
+# network:
+#   # Only when ProtocolLib (or anything else that hooks Netty packet writes) is NOT installed.
+#   OptimizeNonFlushPacketSending: true

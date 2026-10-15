@@ -1,0 +1,8 @@
+# Palladium high-player profile overlay for config/gale-global.yml. Merge into the existing file.
+# [B] = changes gameplay or plugin-visible behaviour.
+
+small-optimizations:
+  reduced-intervals:
+    # [B] Add play-time statistics every 20 ticks instead of every tick (same totals,
+    # coarser granularity). Saves 4 stat updates per player per tick.
+    increase-time-statistics: 20

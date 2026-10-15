@@ -1,0 +1,17 @@
+# Palladium high-player profile overlay for config/paper-global.yml. Merge into the existing file.
+# [B] = changes gameplay or plugin-visible behaviour.
+
+chunk-loading-basic:
+  # Per-player caps; with 500 players the server-wide total is what matters.
+  player-max-chunk-send-rate: 40.0
+  player-max-chunk-load-rate: 60.0
+  # Pregenerate the world (and set a world border). Live worldgen at this scale will lag.
+  player-max-chunk-generate-rate: 10.0
+chunk-loading-advanced:
+  player-max-concurrent-chunk-generates: 8
+player-auto-save:
+  # Default resolves to 20 saves/tick; after a mass join every player comes due at once.
+  max-per-tick: 5
+# [B] Optional: disable player-vs-player pushing in crowded hubs.
+# collisions:
+#   enable-player-collisions: false
