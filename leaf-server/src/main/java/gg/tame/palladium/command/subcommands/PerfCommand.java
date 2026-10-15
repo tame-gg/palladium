@@ -13,6 +13,8 @@ import gg.tame.palladium.config.modules.async.MultithreadedTracker;
 import gg.tame.palladium.config.modules.async.SparklyPaperParallelWorldTicking;
 import gg.tame.palladium.config.modules.opt.VirtualThreadSupport;
 
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.Locale;
 
@@ -37,19 +39,21 @@ public final class PerfCommand extends PermissionedPalladiumSubcommand {
             case "queues" -> sendQueueMetrics(sender);
             case "async" -> sendAsyncMetrics(sender);
             case "memory" -> sendMemoryMetrics(sender);
+            case "gc" -> sendGcMetrics(sender);
             case "all" -> {
                 sendQueueMetrics(sender);
                 sendAsyncMetrics(sender);
                 sendMemoryMetrics(sender);
+                sendGcMetrics(sender);
             }
-            default -> sender.sendMessage(text("Usage: /palladium perf [queues | async | memory | all]", GRAY));
+            default -> sender.sendMessage(text("Usage: /palladium perf [queues | async | memory | gc | all]", GRAY));
         }
         return true;
     }
 
     @Override
     public List<String> tabComplete(final CommandSender sender, final String subCommand, final String[] args) {
-        return args.length == 1 ? List.of("queues", "async", "memory", "all") : List.of();
+        return args.length == 1 ? List.of("queues", "async", "memory", "gc", "all") : List.of();
     }
 
     private static void sendQueueMetrics(CommandSender sender) {
@@ -90,6 +94,18 @@ public final class PerfCommand extends PermissionedPalladiumSubcommand {
         sender.sendMessage(line("total-mb", Long.toString(runtime.totalMemory() / 1024L / 1024L)));
         sender.sendMessage(line("max-mb", Long.toString(runtime.maxMemory() / 1024L / 1024L)));
         sender.sendMessage(line("processors", Integer.toString(runtime.availableProcessors())));
+    }
+
+    private static void sendGcMetrics(CommandSender sender) {
+        sender.sendMessage(text("Palladium GC (since JVM start)", GOLD));
+        final long uptimeMs = Math.max(1L, ManagementFactory.getRuntimeMXBean().getUptime());
+        for (GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
+            final long count = Math.max(0L, gc.getCollectionCount());
+            final long timeMs = Math.max(0L, gc.getCollectionTime());
+            final String avg = count == 0L ? "0" : String.format(Locale.ROOT, "%.1f", (double) timeMs / count);
+            final String share = String.format(Locale.ROOT, "%.2f", timeMs * 100.0D / uptimeMs);
+            sender.sendMessage(line(gc.getName(), count + " collections, " + timeMs + "ms total, " + avg + "ms avg, " + share + "% of uptime"));
+        }
     }
 
     private static Component line(String key, String value) {

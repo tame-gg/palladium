@@ -90,6 +90,7 @@ This runs the patch audit, applies all patches, executes Gradle checks, builds t
 | `/palladium perf queues` | Inspect async pathfinding queue counters. |
 | `/palladium perf async` | Inspect high-risk async feature state. |
 | `/palladium perf memory` | Inspect JVM memory and processor data. |
+| `/palladium perf gc` | Inspect GC collection counts and time per collector. |
 | `/palladium features` | List and run 50 live operator feature commands. |
 
 ## Documentation
