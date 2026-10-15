@@ -2,6 +2,9 @@
 
 Palladium should expose documented presets rather than asking administrators to discover every risky optimization by trial and error.
 
+Hardware-specific profiles with ready-to-merge config overlays and JVM flags (low-end hosts and
+~500-player hosts) live in [performance-profiles.md](performance-profiles.md).
+
 ## Compatibility Mode
 
 Use for plugin-heavy public servers.

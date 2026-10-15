@@ -13,7 +13,8 @@ This document maps the 50 requested feature additions to concrete `/palladium fe
 - `/palladium perf queues` shows async pathfinding queue counters.
 - `/palladium perf async` shows high-risk async feature state and virtual-thread concurrency caps.
 - `/palladium perf memory` shows JVM memory and processor data.
-- `/palladium perf all` prints all three perf views.
+- `/palladium perf gc` shows per-collector GC counts, total and average time, and share of uptime.
+- `/palladium perf all` prints all four perf views.
 
 ## Feature Commands
 

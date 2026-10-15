@@ -1,0 +1,22 @@
+# Palladium low-end profile overlay for config/paper-global.yml. Merge into the existing file.
+# Nothing here changes gameplay; it only paces work and trims CPU.
+
+chunk-loading-basic:
+  # Pace chunk sending/loading so one exploring player cannot saturate a weak CPU or disk.
+  player-max-chunk-send-rate: 40.0
+  player-max-chunk-load-rate: 60.0
+  # Worldgen is the most expensive thing a small server does; pregenerate when possible.
+  player-max-chunk-generate-rate: 20.0
+chunk-loading-advanced:
+  player-max-concurrent-chunk-generates: 8
+chunk-system:
+  # One worker/IO thread leaves the other core to the main thread (this is already the
+  # automatic value on hosts with up to 7 visible CPUs; pinned here for clarity).
+  worker-threads: 1
+  io-threads: 1
+misc:
+  # zlib level for network compression (default -1 = level 6). Lower = less CPU, a bit more bandwidth.
+  compression-level: 4
+  region-file-cache-size: 64
+player-auto-save:
+  max-per-tick: 2

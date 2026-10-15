@@ -1,0 +1,34 @@
+# Palladium low-end profile overlay for spigot.yml. Merge into the existing file.
+# [B] = changes gameplay or plugin-visible behaviour.
+
+settings:
+  # A handful of connections does not need 4 Netty event loops.
+  netty-threads: 2
+world-settings:
+  default:
+    # [B] Entities outside these ranges tick in the cheap "inactive" mode.
+    entity-activation-range:
+      animals: 16
+      monsters: 24
+      raiders: 48
+      misc: 8
+      water: 8
+      villagers: 16
+      flying-monsters: 32
+      # [B] Inactive villagers skip their brain instead of running it every tick.
+      tick-inactive-villagers: false
+    # [B] Distance (blocks) at which entities are sent to clients.
+    entity-tracking-range:
+      players: 96
+      animals: 64
+      monsters: 64
+      misc: 48
+      display: 96
+      other: 64
+    # [B] Merge dropped items / XP orbs from further away (fewer entities in farms).
+    merge-radius:
+      item: 2.0
+      exp: 3.0
+    ticks-per:
+      # [B] Hoppers look for items above them every 8 ticks instead of every tick.
+      hopper-check: 8

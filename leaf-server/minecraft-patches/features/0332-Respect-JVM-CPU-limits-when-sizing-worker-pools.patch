@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: andrew <andrew@zandi.vip>
+Date: Thu, 15 Oct 2026 02:40:54 -0400
+Subject: [PATCH] Respect JVM CPU limits when sizing worker pools
+
+With libnuma available, OSNuma counts every CPU on the host and ignores
+container CPU quotas, so a 2 vCPU container on a large host sizes the
+worldgen worker pool for the whole machine. The extra workers contend
+with the main thread and trigger CFS quota throttling.
+
+Cap the core count by Runtime#availableProcessors, which is container
+aware and honours -XX:ActiveProcessorCount. Bare metal and VMs, where
+both values agree, are unchanged.
+
+diff --git a/net/minecraft/util/Util.java b/net/minecraft/util/Util.java
+index 3cde5f0a3291d62e20f3727f6a1ba8093e47c753..0695b37dcd402e9f6839013eb6289115dbd63c64 100644
+--- a/net/minecraft/util/Util.java
++++ b/net/minecraft/util/Util.java
+@@ -190,7 +190,7 @@ public class Util {
+ 
+     public static int maxAllowedExecutorThreads() {
+         // Paper start - Perf: use simpler thread pool that allows 1 thread and reduce worldgen thread worker count for low core count CPUs
+-        final int cpus = ca.spottedleaf.concurrentutil.numa.OSNuma.getNativeInstance().getTotalCores()  / 2;
++        final int cpus = Math.min(ca.spottedleaf.concurrentutil.numa.OSNuma.getNativeInstance().getTotalCores(), Runtime.getRuntime().availableProcessors()) / 2; // Palladium - Respect JVM CPU limits; libnuma reports host cores and ignores container quotas
+         int maxExecutorThreads;
+         if (cpus <= 4) {
+             maxExecutorThreads = cpus <= 2 ? 1 : 2;

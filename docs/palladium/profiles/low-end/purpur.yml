@@ -1,0 +1,7 @@
+# Palladium low-end profile overlay for purpur.yml. Merge into the existing file.
+# [B] = changes gameplay or plugin-visible behaviour.
+
+settings:
+  # [B] Do not run extra catch-up ticks after a lag spike; on a weak CPU catch-up
+  # prolongs the spike. Game time runs slightly slower during lag instead.
+  tps-catchup: false

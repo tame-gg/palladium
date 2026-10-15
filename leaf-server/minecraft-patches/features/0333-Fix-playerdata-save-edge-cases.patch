@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: andrew <andrew@zandi.vip>
+Date: Thu, 15 Oct 2026 02:41:13 -0400
+Subject: [PATCH] Fix playerdata save edge cases
+
+PlayerDataStorage#save logged a failure from NbtIo#writeCompressed but
+then still wrote the partially filled buffer and swapped it in place of
+the previous .dat file. Return instead, matching vanilla, which only
+replaces the file after a successful write.
+
+The save-timeout diagnostics also searched for the pre-rebrand
+"Leaf IO Thread" name, so the thread dump was always empty; match the
+"Palladium IO Thread" name used by AsyncPlayerDataSaving.
+
+diff --git a/net/minecraft/world/level/storage/PlayerDataStorage.java b/net/minecraft/world/level/storage/PlayerDataStorage.java
+index dc6cfefac4d96536c648f36cd36848a5f9822e22..5922f671c33a101f0db3ec3e616076132a152d44 100644
+--- a/net/minecraft/world/level/storage/PlayerDataStorage.java
++++ b/net/minecraft/world/level/storage/PlayerDataStorage.java
+@@ -54,6 +54,7 @@ public class PlayerDataStorage {
+             NbtIo.writeCompressed(compoundTag, nbtBytes);
+         } catch (Exception exception) {
+             LOGGER.warn("Failed to encode player data for {}", stringId, exception);
++            return; // Palladium - Do not replace saved player data with a partially encoded buffer
+         }
+         lockFor(uniqueId, playerName);
+         synchronized (PlayerDataStorage.this) {
+@@ -96,7 +97,7 @@ public class PlayerDataStorage {
+                 String threadDump = "";
+                 var threadMXBean = java.lang.management.ManagementFactory.getThreadMXBean();
+                 for (var threadInfo : threadMXBean.dumpAllThreads(true, true)) {
+-                    if (threadInfo.getThreadName().equals("Leaf IO Thread")) { // TODO: We should use instanceOf here
++                    if (threadInfo.getThreadName().equals("Palladium IO Thread")) { // TODO: We should use instanceOf here // Palladium - Match the renamed async playerdata IO thread
+                         threadDump = threadInfo.toString();
+                         break;
+                     }

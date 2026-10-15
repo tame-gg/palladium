@@ -1,0 +1,115 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: andrew <andrew@zandi.vip>
+Date: Thu, 15 Oct 2026 02:40:05 -0400
+Subject: [PATCH] Coalesce move event waypoint updates
+
+To fire PlayerMoveEvent, ServerGamePacketListenerImpl#handleMovePlayer
+snaps the player back to the previous position so plugins observe the
+"from" location, then snaps it to the new position again. Each of those
+position changes runs the locator bar hook in Entity#setPosRaw, which
+walks every other player in the level (updateWaypoint + updatePlayer)
+and, on block crossings, sends every receiver a waypoint update for the
+new position, then the old one, then the new one again.
+
+Defer the waypoint hook while that window is open and flush it once, in
+a finally block, at whatever position the player ends up at (including
+plugin teleports and cancelled moves). Receivers get the same final
+waypoint state with a single update, and the two extra O(players)
+passes per moving packet are replaced by one.
+
+Controlled by performance.coalesce-move-waypoint-updates in
+palladium-global.yml. Experimental and off by default; false keeps the
+per-step updates.
+
+diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
+index 411fa06f43ddb5e0d804a28587bfa5335c1e3a81..ae0d02e3e6d6a62c14f107b6b1b7de848dc9a584 100644
+--- a/net/minecraft/server/level/ServerPlayer.java
++++ b/net/minecraft/server/level/ServerPlayer.java
+@@ -432,6 +432,10 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+     public boolean suppressTrackerForLogin = false; // Paper - Fire PlayerJoinEvent when Player is actually ready
+     // CraftBukkit end
+     public boolean didPlayerJoinEvent = false; // Gale - EMC - do not process chat/commands before player has joined
++    // Palladium start - Coalesce move event waypoint updates
++    public boolean deferWaypointUpdates;
++    public boolean deferredWaypointUpdate;
++    // Palladium end - Coalesce move event waypoint updates
+     public boolean isRealPlayer; // Paper
+     public com.destroystokyo.paper.event.entity.@Nullable PlayerNaturallySpawnCreaturesEvent playerNaturallySpawnedEvent; // Paper - PlayerNaturallySpawnCreaturesEvent
+     public org.bukkit.event.player.PlayerQuitEvent.@Nullable QuitReason quitReason = null; // Paper - Add API for quit reason; there are a lot of changes to do if we change all methods leading to the event
+@@ -1475,6 +1479,26 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+         return this.getAttributeValue(Attributes.WAYPOINT_RECEIVE_RANGE) > 0.0;
+     }
+ 
++    // Palladium start - Coalesce move event waypoint updates
++    public void flushDeferredWaypointUpdates() {
++        this.deferWaypointUpdates = false;
++        if (!this.deferredWaypointUpdate) {
++            return;
++        }
++        this.deferredWaypointUpdate = false;
++        // Same conditions as the waypoint hook in Entity#setPosRaw, evaluated once at the final position
++        if (!this.firstTick && !this.isRemoved()) {
++            ServerWaypointManager waypointManager = this.level().getWaypointManager();
++            if (this.isTransmittingWaypoint()) {
++                waypointManager.updateWaypoint(this);
++            }
++            if (this.isReceivingWaypoints() && this.connection != null) {
++                waypointManager.updatePlayer(this);
++            }
++        }
++    }
++    // Palladium end - Coalesce move event waypoint updates
++
+     @Override
+     protected void onAttributeUpdated(Holder<Attribute> attribute) {
+         if (attribute.is(Attributes.WAYPOINT_RECEIVE_RANGE)) {
+diff --git a/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index e36f23ef43d26938f6aeef16bf70ef890bedc79c..5c91fd49bd8b14872349a311230e19bc2a9d8be4 100644
+--- a/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -1692,6 +1692,13 @@ public class ServerGamePacketListenerImpl
+                                 }
+                                 if (allowMovement) {
+                                     // Paper end - Add fail move event
++                                    // Palladium start - Coalesce move event waypoint updates
++                                    // The snap back to the previous position below exists only so plugins see it during
++                                    // PlayerMoveEvent; defer waypoint updates until the final position is known.
++                                    final boolean deferWaypointUpdates = gg.tame.palladium.config.modules.opt.CoalesceMoveWaypointUpdates.enabled;
++                                    this.player.deferWaypointUpdates = deferWaypointUpdates;
++                                    try {
++                                    // Palladium end - Coalesce move event waypoint updates
+                                     // CraftBukkit start - fire PlayerMoveEvent
+                                     // Reset to old location first
+                                     this.player.absSnapTo(prevX, prevY, prevZ, prevYaw, prevPitch);
+@@ -1761,6 +1768,11 @@ public class ServerGamePacketListenerImpl
+                                     }
+                                     // Paper end
+                                     this.player.absSnapTo(d, d1, d2, f, f1);
++                                    // Palladium start - Coalesce move event waypoint updates
++                                    } finally {
++                                        if (deferWaypointUpdates) this.player.flushDeferredWaypointUpdates();
++                                    }
++                                    // Palladium end - Coalesce move event waypoint updates
+                                     boolean isAutoSpinAttack = this.player.isAutoSpinAttack();
+                                     this.clientIsFloating = verticalDelta >= -0.03125
+                                         && !flag1
+diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
+index 28e1da84d2f3dc9e010bfc60644c25b8b7d268c6..3c53239c749f3b18af72f6b7d3609a1afcde3de0 100644
+--- a/net/minecraft/world/entity/Entity.java
++++ b/net/minecraft/world/entity/Entity.java
+@@ -5317,6 +5317,7 @@ public abstract class Entity implements SyncedDataHolder, DebugValueSource, Name
+ 
+             this.levelCallback.onMove();
+             if ((!gg.tame.palladium.config.modules.opt.OptimizeWaypoint.enabled || blockUpdated) && !this.firstTick && this.level instanceof ServerLevel serverLevel && !this.isRemoved()) { // Leaf - optimize waypoint
++                if (this instanceof ServerPlayer deferringPlayer && deferringPlayer.deferWaypointUpdates) { deferringPlayer.deferredWaypointUpdate = true; } else { // Palladium - Coalesce move event waypoint updates
+                 if (this instanceof WaypointTransmitter waypointTransmitter && waypointTransmitter.isTransmittingWaypoint()) {
+                     serverLevel.getWaypointManager().updateWaypoint(waypointTransmitter);
+                 }
+@@ -5324,6 +5325,7 @@ public abstract class Entity implements SyncedDataHolder, DebugValueSource, Name
+                 if (this instanceof ServerPlayer serverPlayer && serverPlayer.isReceivingWaypoints() && serverPlayer.connection != null) {
+                     serverLevel.getWaypointManager().updatePlayer(serverPlayer);
+                 }
++                } // Palladium - Coalesce move event waypoint updates
+             }
+             // Paper start - Fix MC-44654
+             if (this.getType().updateInterval() == Integer.MAX_VALUE) {
