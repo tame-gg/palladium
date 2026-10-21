@@ -77,7 +77,7 @@
 +    }
 +    //implementation("com.github.luben:zstd-jni:1.5.7-6") // LinearPaper // TODO - move to buffered linear
 +    //implementation("org.lz4:lz4-java:1.8.0") // LinearPaper // TODO - move to buffered linear
-+    implementation("com.github.ben-manes.caffeine:caffeine:3.2.3")
++    implementation(libs.caffeine)
 +    // Leaf end - Libraries
 +
      implementation("ca.spottedleaf:concurrentutil:0.0.8")
