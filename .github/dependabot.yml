@@ -8,6 +8,14 @@ updates:
     labels:
       - dependencies
       - needs-compatibility-check
+    # Hold these ignores while Palladium is on Minecraft 1.21.11 (paperweight
+    # beta.19 and Gradle 9.4.1). Remove them when it moves to 26.x.
+    ignore:
+      - dependency-name: "io.papermc.paperweight.patcher"
+      - dependency-name: "io.papermc.paperweight.patcher:io.papermc.paperweight.patcher.gradle.plugin"
+      # Wrapper updates come through this gradle entry as "gradle-wrapper" (see #20).
+      - dependency-name: "gradle-wrapper"
+        versions: [">= 9.7.1"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
