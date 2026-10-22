@@ -8,8 +8,8 @@ updates:
     labels:
       - dependencies
       - needs-compatibility-check
-    # Hold paperweight and the Gradle wrapper until the combined bump and
-    # build-script migration lands (see #21). Remove once that PR merges.
+    # Hold these ignores while Palladium is on Minecraft 1.21.11 (paperweight
+    # beta.19 and Gradle 9.4.1). Remove them when it moves to 26.x.
     ignore:
       - dependency-name: "io.papermc.paperweight.patcher"
       - dependency-name: "io.papermc.paperweight.patcher:io.papermc.paperweight.patcher.gradle.plugin"
