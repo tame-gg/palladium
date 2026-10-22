@@ -8,6 +8,14 @@ updates:
     labels:
       - dependencies
       - needs-compatibility-check
+    # Hold paperweight and the Gradle wrapper until the combined bump and
+    # build-script migration lands (see #21). Remove once that PR merges.
+    ignore:
+      - dependency-name: "io.papermc.paperweight.patcher"
+      - dependency-name: "io.papermc.paperweight.patcher:io.papermc.paperweight.patcher.gradle.plugin"
+      # Wrapper updates come through this gradle entry as "gradle-wrapper" (see #20).
+      - dependency-name: "gradle-wrapper"
+        versions: [">= 9.7.1"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
